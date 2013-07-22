@@ -1,0 +1,268 @@
+<html>
+	<head>
+		<meta http-equiv="cache-control" content="max-age=0" />
+		<meta http-equiv="cache-control" content="no-cache" />
+		<meta http-equiv="expires" content="0" />
+		<meta http-equiv="expires" content="Tue, 01 Jan 1980 1:00:00 GMT" />
+		<meta http-equiv="pragma" content="no-cache" />
+		<title>Hello There</title>
+		<script>
+			var mainCanvasCtxt;
+			var imgCanvasCtxt;
+			var writingCanvasCtxt;
+			var writingCanvas;
+			var imgPixelData;
+			var canvasHeight = -1;
+			var canvasWidth = -1;
+			var globalCounter = 0;
+			var timeMark;
+			var xIdx = 0;
+			var yIdx = 1;
+			var gravity = -1;
+			var impulse = 0.0005;
+			var impulseScaler = 6;
+			var normalBoundaries = [
+				[1,  0, 1], // left vertical plane
+				[0, -1, 1], // bottom horizontal plane
+				[-1, 0, 1], // right vertical plane
+				[0,  1, 1]]; // top horizontal plane
+			var smallSize = 0.4; 
+			var smallBoundaries = [
+				[1,  0, smallSize], // left vertical plane
+				[0, -1, smallSize], // bottom horizontal plane
+				[-1, 0, smallSize], // right vertical plane
+				[0,  1, smallSize]]; // top horizontal plane
+			var qPi = Math.PI/4;
+			var angledSize = 0.4;
+			var angledBoundaries = [
+				[Math.cos(0+qPi),  Math.sin(0+qPi), angledSize], // left vertical plane
+				[Math.cos(Math.PI/2+qPi),  Math.sin(Math.PI/2+qPi), angledSize], // bottom horizontal plane
+				[Math.cos(Math.PI+qPi),  Math.sin(Math.PI+qPi), angledSize], // right vertical plane
+				[Math.cos(3*Math.PI/2+qPi),  Math.sin(3*Math.PI/2+qPi), angledSize]]; // top horizontal plane
+			boundaries = normalBoundaries;
+
+			function Ball() {
+				var x = 1 - Math.random() * 2;
+				var y = 1 - Math.random() * 2;
+				var vx = (impulse - (Math.random() * (2*impulse))) * impulseScaler;
+				var vy = (impulse - (Math.random() * (2*impulse))) * impulseScaler;
+				this.pos = [x, y];
+				this.vec = [vx, vy];
+			}
+
+			Ball.prototype.render = function(ctxt) {
+				ctxt.beginPath();
+				ctxt.arc(this.canvasX(), this.canvasY(), 1, 0, Math.PI*2, false);
+				ctxt.closePath();
+				ctxt.fill();
+				ctxt.arc();
+				// console.log(JSON.stringify(this));
+			};
+
+			Ball.prototype.canvasX = function() {
+				var x = this.pos[xIdx] + 1;
+				return x * canvasWidth/2;
+			}
+
+			Ball.prototype.canvasY = function() {
+				var y = this.pos[yIdx] + 1;
+				return y * canvasHeight/2;
+			}
+
+			Ball.prototype.move = function() {
+				for (var i = 0; i < this.pos.length; i++) {
+					this.pos[i] += this.vec[i];
+				}
+			};
+
+			Ball.prototype.boundsCheck = function(bounds) {
+				for (var i = 0; i < bounds.length; i++) {
+					var plane = bounds[i];
+					var planeVec = plane.slice(0,2);
+					var distance = dotProduct(this.pos, planeVec) + plane[2];
+					if (distance < 0 && dotProduct(this.vec, planeVec) < 0) {
+						var dot = 2 * dotProduct(planeVec, this.vec);
+						var scaledVec = scaleVec(planeVec, dot);
+						this.vec = subVec(this.vec, scaledVec);
+					}
+				}
+			};
+
+			Ball.prototype.imageCheck = function(img) {
+				var vx = (impulse - (Math.random() * (2*impulse))) * impulseScaler;
+				var vy = (impulse - (Math.random() * (2*impulse))) * impulseScaler;
+				this.vec = [vx, vy];
+				if (!isColored(this.canvasX(), this.canvasY())) {
+					if (Math.random() > 0.95) {
+						this.pos[xIdx] = 1 - (Math.random() * 2);
+						this.pos[yIdx] = 1 - (Math.random() * 2);
+					}
+				}
+			};
+
+			function dotProduct(vec1, vec2) {
+				var total = 0;
+				for (var i = 0; i < vec1.length; i++) {
+					total += vec1[i] * vec2[i];
+				}
+				return total;
+			}
+
+			function addVec(vec1, vec2) {
+				var vec = new Array();
+				for (var i = 0; i < vec1.length; i++) {
+					vec[i] = vec1[i] + vec2[i];
+				}
+				return vec;
+			}
+
+			function subVec(vec1, vec2) {
+				var vec = new Array();
+				for (var i = 0; i < vec1.length; i++) {
+					vec[i] = vec1[i] - vec2[i];
+				}
+				return vec;
+			}
+
+			function scaleVec(vec1, scale) {
+				var vec = new Array();
+				for (var i = 0; i < vec1.length; i++) {
+					vec[i] = vec1[i] * scale;
+				}
+				return vec;
+			}
+
+			function render(balls, beat) {
+				background_render();
+				balls_render(balls, beat);
+				double_buffer();
+			}
+
+			function background_render() {
+				writingCanvasCtxt.fillStyle = "rgba(0, 0, 0, 0.05)";
+				writingCanvasCtxt.fillRect(0,0,canvasWidth,canvasHeight);
+			}
+
+			function balls_render(balls, beat) {
+				if (beat) {
+					writingCanvasCtxt.fillStyle = "rgba(255, 180, 180, 0.1)";
+				} else {
+					writingCanvasCtxt.fillStyle = "rgba(255, 180, 180, 0.1)";
+				}
+				for (var i=0; i<balls.length; i++) {
+					balls[i].render(writingCanvasCtxt);
+				}
+			}
+
+			function double_buffer() {
+				mainCanvasCtxt.drawImage(writingCanvas, 0, 0);
+			}
+
+			function isColored(x, y) {
+				var idx = (Math.floor(y) * canvasHeight + Math.floor(x)) * 4;
+				return idx < imgPixelData.length && imgPixelData[idx] < 255;
+			}
+
+			function move(balls) {
+				for (var i=0; i<balls.length; i++) {
+					balls[i].move();
+				}
+			}
+
+			function boundsCheck(balls, beat) {
+				if (!beat) {
+					for (var i=0; i<balls.length; i++) {
+						// balls[i].boundsCheck(boundaries);
+						balls[i].imageCheck();
+					}
+				}
+			}
+
+			function between(x, low, high) {
+				return x >= low && x <= high;
+			}
+
+			function gravitate(ball1, ball2) {
+				var dist = distance();
+			}
+
+			function distance(ball1, ball2) {
+				var x1 = ball1.pos[xIdx];
+				var y1 = ball1.pos[yIdx];
+				var x2 = ball2.pos[xIdx];
+				var y2 = ball2.pos[yIdx];
+				var xDiff = Math.abs(x1-x2);
+				var yDiff = Math.abs(y1-y2);
+				return Math.sqrt((xDiff*xDiff + yDiff*yDiff));
+			}
+
+			function makeBalls(num) {
+				balls = new Array();
+				for (var i = 0; i < num; i++) {
+					balls[i] = new Ball();
+				}
+				return balls;
+			}
+
+			function run() {
+				initMainCanvas();
+			}
+
+			function initMainCanvas() {
+				var mainCanvas = document.getElementById("main_canvas");
+				mainCanvasCtxt = mainCanvas.getContext("2d");
+				canvasHeight = mainCanvas.height;
+				canvasWidth = mainCanvas.width;
+				mainCanvasCtxt.fillStyle = "rgba(0, 0, 0, 1)";
+				mainCanvasCtxt.fillRect(0,0,canvasWidth,canvasHeight);
+				// writing canvas
+				writingCanvas = document.getElementById("writing_canvas");
+				writingCanvasCtxt = writingCanvas.getContext("2d");
+				// image canvas
+				var imgCanvas = document.getElementById("img_canvas");
+				imgCanvasCtxt = imgCanvas.getContext("2d");
+				var imgObj = new Image();
+				imgObj.onload = function() {
+					imgCanvasCtxt.drawImage(imgObj, 0, 0);
+					imgPixelData = imgCanvasCtxt.getImageData(0, 0, imgCanvas.width, imgCanvas.width).data;
+					startGame();
+				}
+				imgObj.src = "/heart_big.jpg";
+			}
+
+			function startGame() {
+				var balls = makeBalls(10000);
+				timeMark = new Date().getTime();
+				var gameLoop = function() {
+					var beat = false;
+					var now = new Date().getTime();
+					var diff = now - timeMark;
+					if (between(diff, 400, 600) || between(diff, 800, 1000)) {
+						beat = true;
+					}
+					if (diff > 1000) {
+						timeMark = now;
+					}
+					noBounds = beat;
+					if (globalCounter > 100) {
+						noBounds = true;
+					}
+					if (globalCounter > 200) {
+						globalCounter = 0;
+					}
+					globalCounter++;
+					move(balls);
+					boundsCheck(balls, noBounds);
+					render(balls, beat);
+				}
+				setInterval(gameLoop, 50);
+			}
+		</script>
+	</head>
+	<body onload="run()">
+		<p>Hello There</p>
+		<canvas width="600" height="600" id="main_canvas" border="2"></canvas>
+		<canvas width="600" height="600" id="img_canvas" style="visibility:hidden" border="2"></canvas>
+		<canvas width="600" height="600" id="writing_canvas" style="visibility:hidden" border="2"></canvas>
+	</body>
+</html>
